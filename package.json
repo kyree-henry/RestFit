@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf lib",
     "prepublishOnly": "npm run clean && npm run build",
     "release": "npm version patch && git push && git push --tags && npm publish",
