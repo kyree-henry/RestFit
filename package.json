@@ -1,0 +1,57 @@
+{
+  "name": "restfit",
+  "version": "1.0.0",
+  "description": "A TypeScript decorator-based REST API client library",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf lib",
+    "prepublishOnly": "npm run clean && npm run build",
+    "release": "npm version patch && git push && git push --tags && npm publish",
+    "release:minor": "npm version minor && git push && git push --tags && npm publish",
+    "release:beta": "npm version prerelease --preid=beta && git push && git push --tags && npm publish --tag beta",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "sample:basic": "tsx samples/01-basic-usage.ts",
+    "sample:methods": "tsx samples/02-http-methods.ts",
+    "sample:params": "tsx samples/03-parameters.ts",
+    "sample:errors": "tsx samples/04-error-handling.ts",
+    "sample:resilience": "tsx samples/05-resilience.ts",
+    "sample:multiple": "tsx samples/06-multiple-services.ts",
+    "sample:realworld": "tsx samples/07-real-world-api.ts"
+  },
+  "keywords": [
+    "rest",
+    "api",
+    "client",
+    "decorators",
+    "typescript",
+    "axios",
+    "http"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "axios-circuit-breaker": "^1.0.0",
+    "axios-retry": "^4.1.0",
+    "reflect-metadata": "^0.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "rimraf": "^5.0.5",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {
+    "typescript": ">=4.0.0"
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "LICENSE"
+  ]
+}
