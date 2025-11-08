@@ -12,8 +12,9 @@ export interface ApiServiceConfig {
   /**
    * Authorization configuration.
    * Can be a Bearer token string, or a function that returns a token.
+   * If the function returns null or empty string, authorization header will not be added.
    */
-  authorization?: string | (() => string | Promise<string>);
+  authorization?: string | (() => string | null | Promise<string | null>);
   /**
    * Authorization type. Defaults to 'Bearer'.
    */
@@ -123,12 +124,14 @@ function createSingleService<T>(
       // Handle dynamic authorization if it's a function
       if (config.authorization && typeof config.authorization === 'function') {
         const token = await config.authorization();
-        const authType = config.authorizationType || 'Bearer';
-        requestHeaders['Authorization'] = authType === 'Bearer'
-          ? `Bearer ${token}`
-          : authType === 'Basic'
-            ? `Basic ${token}`
-            : token;
+        if (token) {
+          const authType = config.authorizationType || 'Bearer';
+          requestHeaders['Authorization'] = authType === 'Bearer'
+            ? `Bearer ${token}`
+            : authType === 'Basic'
+              ? `Basic ${token}`
+              : token;
+        }
       }
 
       paramMetadata.forEach((param) => {
