@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import 'reflect-metadata';
 import axios, { AxiosError, Method } from 'axios';
-import { META_METHOD, META_PATH, META_PARAMS, META_ERRORS, META_SUCCESS } from '../constants/metadata';
-import { ParamMetadata, SuccessHandlerMetadata } from '../types';
+import { META_METHOD, META_PATH, META_PARAMS, META_ERRORS, META_SUCCESS, META_RESPONSE } from '../constants/metadata';
+import { ParamMetadata, SuccessHandlerMetadata, ResponseInterceptorMetadata, ResponseInterceptorConfig } from '../types';
 import { ResiliencePolicy, DEFAULT_RESILIENCE_POLICY } from '../types/resilience';
 import { applyResilience } from '../resilience';
+import { applyResponseInterceptors } from '../interceptors';
 
 export interface ApiServiceConfig {
   baseUrl: string;
@@ -25,6 +26,12 @@ export interface ApiServiceConfig {
    * Set to false to disable resilience features.
    */
   resilience?: ResiliencePolicy | false;
+  /**
+   * Global response interceptors.
+   * These interceptors will be applied to all requests made by this service.
+   * Can be combined with method-specific @Interceptor decorators.
+   */
+  responseInterceptors?: ResponseInterceptorConfig[];
 }
 
 // Overload for single service
@@ -97,6 +104,11 @@ function createSingleService<T>(
     const resiliencePolicy = config.resilience || DEFAULT_RESILIENCE_POLICY;
     applyResilience(axiosInstance, resiliencePolicy);
   }
+
+  // Apply global response interceptors if provided
+  if (config.responseInterceptors && config.responseInterceptors.length > 0) {
+    applyResponseInterceptors(axiosInstance, config.responseInterceptors);
+  }
   const prototype = Object.getPrototypeOf(instance);
   const methodNames = Object.getOwnPropertyNames(prototype).filter(name => name !== 'constructor');
 
@@ -114,6 +126,7 @@ function createSingleService<T>(
     }
 
     const errorHandlers = Reflect.getMetadata(META_ERRORS, prototype, methodName) || [];
+    const responseInterceptors: ResponseInterceptorMetadata[] = Reflect.getMetadata(META_RESPONSE, prototype, methodName) || [];
 
     (instance as any)[methodName] = async function (...args: any[]) {
       let url = pathTemplate;
@@ -158,6 +171,11 @@ function createSingleService<T>(
           data: requestBody,
           headers: requestHeaders
         });
+
+        // Execute response interceptors
+        for (const interceptor of responseInterceptors) {
+          await interceptor.handler(response);
+        }
 
         const status = response.status;
         const successHandlers: SuccessHandlerMetadata<any>[] = Reflect.getMetadata(META_SUCCESS, prototype, methodName) || [];

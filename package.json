@@ -18,7 +18,8 @@
     "sample:errors": "tsx samples/04-error-handling.ts",
     "sample:resilience": "tsx samples/05-resilience.ts",
     "sample:multiple": "tsx samples/06-multiple-services.ts",
-    "sample:realworld": "tsx samples/07-real-world-api.ts"
+    "sample:realworld": "tsx samples/07-real-world-api.ts",
+    "sample:interceptors": "tsx samples/08-response-interceptors.ts"
   },
   "keywords": [
     "rest",

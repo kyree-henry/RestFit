@@ -123,6 +123,92 @@ class User {
   - `status` can be a single number or array of numbers
   - Example: `@OnSuccess([200, 201], handler)`
 
+### Response Interceptors
+
+RestFit supports response interceptors in two ways:
+1. **Global interceptors** - Applied to all requests via `ApiServiceConfig`
+2. **Method-specific interceptors** - Applied via `@Interceptor` decorator
+
+Both can be used together, with global interceptors running first.
+
+#### Global Response Interceptors
+
+Configure interceptors at the service level to apply to all requests:
+
+```typescript
+import { createApiService, ResponseInterceptorConfig } from 'restfit';
+import { AxiosResponse } from 'axios';
+
+const globalInterceptors: ResponseInterceptorConfig[] = [
+  {
+    // Handler: Check condition and execute action in one function
+    handler: (response) => {
+      if (response.headers['x-rate-limit-remaining']) {
+        const remaining = response.headers['x-rate-limit-remaining'];
+        const limit = response.headers['x-rate-limit-limit'];
+        console.log(`Rate limit: ${remaining}/${limit}`);
+        
+        if (Number(remaining) < 10) {
+          notificationService.warn('Rate limit is getting low!');
+        }
+      }
+    }
+  },
+  {
+    // Handler: Check for custom header and update app state
+    handler: async (response) => {
+      if (response.headers['x-something']) {
+        const customValue = response.headers['x-something'];
+        await appState.update({ customFlag: customValue });
+      }
+    }
+  }
+];
+
+const userService = createApiService(UserService, {
+  baseUrl: 'https://api.example.com',
+  responseInterceptors: globalInterceptors
+});
+```
+
+#### Method-Specific Interceptors (Decorator)
+
+Use `@Interceptor` decorator for method-specific interceptors:
+
+```typescript
+import { Get, Interceptor } from 'restfit';
+import { AxiosResponse } from 'axios';
+
+class UserService {
+  @Get('/users')
+  @Interceptor((response) => {
+    // Check condition and execute action in one function
+    if (response.data.length > 0) {
+      console.log(`Retrieved ${response.data.length} users`);
+    }
+  })
+  @Interceptor(async (response) => {
+    // Multiple interceptors can be chained
+    // Check for specific header
+    if (response.headers['x-custom']) {
+      const value = response.headers['x-custom'];
+      eventBus.emit('custom-event', { value });
+    }
+  })
+  async getUsers(): Promise<User[]> {
+    return [];
+  }
+}
+```
+
+**Use Cases:**
+- Monitor rate limit headers and trigger warnings
+- Check for custom headers and update app state
+- Analyze response data and trigger notifications
+- Track analytics based on response characteristics
+- Update cache strategies based on cache-control headers
+- Global logging or monitoring across all API calls
+
 ### Authorization Configuration
 
 RestFit supports flexible authorization configuration:

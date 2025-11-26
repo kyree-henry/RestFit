@@ -2,6 +2,7 @@
 export { Get, Post, Put, Patch, Delete } from './decorators/http-methods';
 export { Header, Query, Path, Body } from './decorators/parameters';
 export { OnError, OnSuccess } from './decorators/handlers';
+export { Interceptor } from './decorators/response-interceptor';
 export { SerializedName, AliasAs } from './decorators/serialization';
 
 // Factory functions
@@ -14,6 +15,8 @@ export type {
   ParamMetadata,
   ErrorHandlerMetadata,
   SuccessHandlerMetadata,
+  ResponseInterceptorMetadata,
+  ResponseInterceptorConfig,
   ResiliencePolicy,
   RetryPolicy,
   CircuitBreakerPolicy

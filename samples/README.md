@@ -68,6 +68,15 @@ A practical example using REST Countries API showing real-world patterns.
 - Error handling in production scenarios
 - Complex queries and filtering
 
+### 08-response-interceptors.ts
+Demonstrates how to use `@Interceptor` decorator and global interceptors to check responses and trigger actions.
+
+**Key Features:**
+- Checking response headers (e.g., rate limits, custom headers)
+- Analyzing response data
+- Triggering app logic based on response characteristics
+- Chaining multiple response interceptors
+
 ## Running the Samples
 
 ### Quick Start
@@ -86,6 +95,7 @@ A practical example using REST Countries API showing real-world patterns.
    npm run sample:resilience   # Resilience configuration example
    npm run sample:multiple     # Multiple services example
    npm run sample:realworld    # Real-world API example
+   npm run sample:interceptors # Response interceptors example
    ```
 
 ### Alternative Methods

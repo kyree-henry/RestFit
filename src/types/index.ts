@@ -18,6 +18,14 @@ export interface SuccessHandlerMetadata<ReturnType> {
   handler: (response: any) => ReturnType | Promise<ReturnType>;
 }
 
+export interface ResponseInterceptorMetadata {
+  handler: (response: AxiosResponse) => void | Promise<void>;
+}
+
+export interface ResponseInterceptorConfig {
+  handler: (response: AxiosResponse) => void | Promise<void>;
+}
+
 // Re-export resilience types
 export type {
   ResiliencePolicy,
