@@ -24,3 +24,7 @@ export type {
 
 export { DEFAULT_RESILIENCE_POLICY } from './types';
 
+// Response helpers
+export { extendResponse, createSuccessResponse, createErrorResponse } from './utils/response-helpers';
+export type { ExtendedAxiosResponse, SuccessStatusCode, ErrorStatusCode } from './utils/response-helpers';
+

@@ -2,6 +2,7 @@
 import { AxiosResponse } from 'axios';
 import { META_RESPONSE } from '../constants/metadata';
 import { ResponseInterceptorMetadata } from '../types';
+import { ExtendedAxiosResponse } from '../utils/response-helpers';
 
 /**
  * Decorator to intercept responses and optionally modify them.
@@ -37,7 +38,7 @@ import { ResponseInterceptorMetadata } from '../types';
  * ```
  */
 export function ResponseInterceptor(
-  handler: (response: AxiosResponse) => void | AxiosResponse | Promise<void | AxiosResponse>
+  handler: (response: ExtendedAxiosResponse) => void | ExtendedAxiosResponse | Promise<void | ExtendedAxiosResponse>
 ): MethodDecorator {
   return function (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) {
     const interceptors: ResponseInterceptorMetadata[] =

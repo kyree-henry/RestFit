@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import 'reflect-metadata';
-import axios, { AxiosError, Method } from 'axios';
+import axios, { AxiosError, AxiosResponse, Method } from 'axios';
 import { META_METHOD, META_PATH, META_PARAMS, META_ERRORS, META_SUCCESS, META_RESPONSE } from '../constants/metadata';
 import { ParamMetadata, SuccessHandlerMetadata, ResponseInterceptorMetadata, ResponseInterceptorConfig } from '../types';
 import { ResiliencePolicy, DEFAULT_RESILIENCE_POLICY } from '../types/resilience';
 import { applyResilience } from '../resilience';
 import { applyResponseInterceptors } from '../interceptors';
+import { extendResponse, ExtendedAxiosResponse } from '../utils/response-helpers';
 
 export interface ApiServiceConfig {
   baseUrl: string;
@@ -175,13 +176,15 @@ function createSingleService<T>(
           headers: requestHeaders
         });
 
-        // Execute response interceptors (can modify response)
+        // Extend response with helper methods and execute interceptors
+        let extendedResponse = extendResponse(response);
         for (const interceptor of responseInterceptors) {
-          const result = await interceptor.handler(response);
+          const result = await interceptor.handler(extendedResponse);
           if (result) {
-            response = result;
+            extendedResponse = extendResponse(result);
           }
         }
+        response = extendedResponse;
 
         const status = response.status;
         const successHandlers: SuccessHandlerMetadata<any>[] = Reflect.getMetadata(META_SUCCESS, prototype, methodName) || [];
@@ -196,12 +199,44 @@ function createSingleService<T>(
         return response.data;
       } catch (error) {
         if (axios.isAxiosError(error)) {
-          const status = error.response?.status;
+          // Create or use existing response for method-specific interceptors
+          let responseToIntercept: AxiosResponse;
+
+          if (error.response) {
+            // HTTP error with response (4xx, 5xx)
+            responseToIntercept = error.response;
+          } else {
+            // Network error (no response) - create synthetic response
+            responseToIntercept = {
+              data: error.message || 'Network Error',
+              status: 0, // 0 indicates network error
+              statusText: error.code || 'Network Error',
+              headers: {},
+              config: error.config || {},
+            } as AxiosResponse;
+          }
+
+          // Extend response with helper methods and execute interceptors
+          let modifiedResponse = extendResponse(responseToIntercept);
+          for (const interceptor of responseInterceptors) {
+            const result = await interceptor.handler(modifiedResponse);
+            if (result) {
+              modifiedResponse = extendResponse(result);
+              // If interceptor changed status to success (2xx), return it as success (no error thrown)
+              if (modifiedResponse.isSuccessStatusCode()) {
+                return modifiedResponse.data;
+              }
+            }
+          }
+
+          // If interceptor converted to success, we already returned above
+          // Otherwise, continue with error handler logic
+          const status = modifiedResponse.status;
 
           // Find matching error handler
           const handler = errorHandlers.find((h: any) => {
             if (h.status === null) return true; // Catch-all handler
-            if (status === undefined) return false; // No status means network error, only catch-all handles it
+            if (status === 0) return h.status === null; // Network error (status 0) only handled by catch-all
             if (Array.isArray(h.status)) return h.status.includes(status);
             return h.status === status;
           });

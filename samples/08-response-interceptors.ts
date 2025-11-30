@@ -13,7 +13,7 @@
  */
 
 import 'reflect-metadata';
-import { Get, Path, createApiService, ResponseInterceptor, ResponseInterceptorConfig } from '../src';
+import { Get, Path, createApiService, ResponseInterceptor, ResponseInterceptorConfig, ExtendedAxiosResponse } from '../src';
 import { AxiosResponse } from 'axios';
 
 interface User {
@@ -46,7 +46,12 @@ interface ServiceResponse<T> {
 
 class UserService {
   @Get('/users')
-  @ResponseInterceptor((response) => {
+  @ResponseInterceptor((response: ExtendedAxiosResponse) => {
+    // Example: Using helper methods
+    if (!response.isSuccessStatusCode()) {
+      response.ensureSuccessStatusCode(); // Throws if not successful
+    }
+
     // Check condition and execute action (void return - no modification)
     if (response.headers['x-rate-limit-remaining']) {
       const remaining = response.headers['x-rate-limit-remaining'];
@@ -299,7 +304,8 @@ async function main() {
     const serviceResponseInterceptors: ResponseInterceptorConfig[] = [
       {
         handler: (response) => {
-          if (response.status >= 400) {
+          // Use helper method to check if status is not successful
+          if (!response.isSuccessStatusCode()) {
             const originalStatusCode = response.status;
             const serviceResponse: ServiceResponse<null> = {
               success: false,
@@ -312,11 +318,10 @@ async function main() {
               statusCode: originalStatusCode,
               timestamp: new Date().toISOString()
             };
-            // Change status to 200 so no error is thrown
-            response.status = 200;
-            response.statusText = "OK";
-            response.data = serviceResponse;
-            return response;
+            // Use helper method to clone with new status code
+            const cloned = response.cloneWithStatusCode(200);
+            cloned.data = serviceResponse;
+            return cloned;
           }
         }
       }

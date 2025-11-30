@@ -1,4 +1,5 @@
 import { AxiosError, AxiosResponse } from 'axios';
+import { ExtendedAxiosResponse } from '../utils/response-helpers';
 
 export type ParamType = 'path' | 'query' | 'body' | 'header';
 
@@ -19,11 +20,11 @@ export interface SuccessHandlerMetadata<ReturnType> {
 }
 
 export interface ResponseInterceptorMetadata {
-  handler: (response: AxiosResponse) => void | AxiosResponse | Promise<void | AxiosResponse>;
+  handler: (response: ExtendedAxiosResponse) => void | ExtendedAxiosResponse | Promise<void | ExtendedAxiosResponse>;
 }
 
 export interface ResponseInterceptorConfig {
-  handler: (response: AxiosResponse) => void | AxiosResponse | Promise<void | AxiosResponse>;
+  handler: (response: ExtendedAxiosResponse) => void | ExtendedAxiosResponse | Promise<void | ExtendedAxiosResponse>;
 }
 
 // Re-export resilience types
