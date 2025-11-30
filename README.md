@@ -116,6 +116,8 @@ class User {
 
 ## Handler Decorators
 
+- `@OnError(handler)` - Catch-all error handler (catches all errors regardless of status)
+  - Example: `@OnError((error) => { /* handle all errors */ })`
 - `@OnError(status, handler)` - Custom error handler for specific status codes
   - `status` can be a single number, array of numbers, or `null` for catch-all
   - Example: `@OnError([404, 500], handler)` or `@OnError(null, handler)`
@@ -125,11 +127,18 @@ class User {
 
 ### Response Interceptors
 
-RestFit supports response interceptors in two ways:
+RestFit supports response interceptors that allow you to check responses, trigger actions, and optionally modify responses.
+
+There are two ways to use interceptors:
+
 1. **Global interceptors** - Applied to all requests via `ApiServiceConfig`
-2. **Method-specific interceptors** - Applied via `@Interceptor` decorator
+2. **Method-specific interceptors** - Applied via `@ResponseInterceptor` decorator
 
 Both can be used together, with global interceptors running first.
+
+Interceptors can:
+- Return `void` for side effects (logging, triggering actions, etc.)
+- Return a modified `AxiosResponse` to transform the response data
 
 #### Global Response Interceptors
 
@@ -173,22 +182,22 @@ const userService = createApiService(UserService, {
 
 #### Method-Specific Interceptors (Decorator)
 
-Use `@Interceptor` decorator for method-specific interceptors:
+Use `@ResponseInterceptor` decorator for method-specific interceptors:
 
 ```typescript
-import { Get, Interceptor } from 'restfit';
+import { Get, ResponseInterceptor } from 'restfit';
 import { AxiosResponse } from 'axios';
 
 class UserService {
   @Get('/users')
-  @Interceptor((response) => {
-    // Check condition and execute action in one function
+  @ResponseInterceptor((response) => {
+    // Side effect: Check condition and execute action (void return)
     if (response.data.length > 0) {
       console.log(`Retrieved ${response.data.length} users`);
     }
   })
-  @Interceptor(async (response) => {
-    // Multiple interceptors can be chained
+  @ResponseInterceptor(async (response) => {
+    // Side effect: Multiple interceptors can be chained
     // Check for specific header
     if (response.headers['x-custom']) {
       const value = response.headers['x-custom'];
@@ -197,6 +206,24 @@ class UserService {
   })
   async getUsers(): Promise<User[]> {
     return [];
+  }
+
+  @Get('/users/{id}')
+  @ResponseInterceptor((response) => {
+    // Modify response: Transform the response data
+    if (response.data) {
+      response.data = {
+        ...response.data,
+        metadata: {
+          fetchedAt: new Date().toISOString(),
+          processed: true
+        }
+      };
+      return response; // Return modified response
+    }
+  })
+  async getUser(@Path('id') id: number): Promise<User & { metadata?: any }> {
+    return {} as User & { metadata?: any };
   }
 }
 ```
@@ -208,6 +235,9 @@ class UserService {
 - Track analytics based on response characteristics
 - Update cache strategies based on cache-control headers
 - Global logging or monitoring across all API calls
+- Transform response data before it reaches your code
+- Add computed properties or metadata to responses
+- Normalize API responses to match your data models
 
 ### Authorization Configuration
 

@@ -12,18 +12,31 @@ export function applyResponseInterceptors(
   // Add axios response interceptor
   axiosInstance.interceptors.response.use(
     async (response: AxiosResponse) => {
-      // Execute all interceptors
+      // Execute all interceptors (can modify response)
+      let modifiedResponse = response;
       for (const interceptor of interceptors) {
-        await interceptor.handler(response);
+        const result = await interceptor.handler(modifiedResponse);
+        if (result) {
+          modifiedResponse = result;
+        }
       }
-      return response;
+      return modifiedResponse;
     },
     async (error: any) => {
       // Also execute interceptors on error responses
       if (error.response) {
+        let modifiedResponse = error.response;
         for (const interceptor of interceptors) {
-          await interceptor.handler(error.response);
+          const result = await interceptor.handler(modifiedResponse);
+          if (result) {
+            modifiedResponse = result;
+            // If interceptor changed status to success (2xx), return it as success (no error thrown)
+            if (modifiedResponse.status >= 200 && modifiedResponse.status < 300) {
+              return modifiedResponse;
+            }
+          }
         }
+        error.response = modifiedResponse;
       }
       return Promise.reject(error);
     }

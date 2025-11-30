@@ -89,7 +89,7 @@ class AlbumService {
     return {} as AlbumWithMetadata;
   }
 
-  // Null error handler (catch-all for any error)
+  // Null error handler (catch-all for any error) - old syntax
   @Get('/albums/{albumId}/photos')
   @OnError(null, (error: AxiosError) => {
     console.error('Unexpected error:', error.message);
@@ -100,6 +100,21 @@ class AlbumService {
     };
   })
   async getAlbumPhotos(@Path('albumId') albumId: number): Promise<any> {
+    return {};
+  }
+
+  // Catch-all error handler - new syntax (no status parameter)
+  @Get('/albums/{albumId}/comments')
+  @OnError((error: AxiosError) => {
+    console.error('Catch-all error handler:', error.message);
+    return {
+      error: true,
+      message: error.message,
+      status: error.response?.status || 0,
+      handled: true,
+    };
+  })
+  async getAlbumComments(@Path('albumId') albumId: number): Promise<any> {
     return {};
   }
 }
@@ -137,9 +152,13 @@ async function main() {
       console.log('Error handled:', error.message);
     }
 
-    console.log('\n=== Catch-All Error Handler ===');
+    console.log('\n=== Catch-All Error Handler (null syntax) ===');
     const photos = await albumService.getAlbumPhotos(1);
     console.log('Photos result:', photos);
+
+    console.log('\n=== Catch-All Error Handler (no status) ===');
+    const comments = await albumService.getAlbumComments(1);
+    console.log('Comments result:', comments);
   } catch (error) {
     console.error('Unhandled error:', error);
   }

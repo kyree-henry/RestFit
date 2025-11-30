@@ -19,11 +19,11 @@ export interface SuccessHandlerMetadata<ReturnType> {
 }
 
 export interface ResponseInterceptorMetadata {
-  handler: (response: AxiosResponse) => void | Promise<void>;
+  handler: (response: AxiosResponse) => void | AxiosResponse | Promise<void | AxiosResponse>;
 }
 
 export interface ResponseInterceptorConfig {
-  handler: (response: AxiosResponse) => void | Promise<void>;
+  handler: (response: AxiosResponse) => void | AxiosResponse | Promise<void | AxiosResponse>;
 }
 
 // Re-export resilience types

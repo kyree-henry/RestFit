@@ -4,14 +4,25 @@ import { META_ERRORS, META_SUCCESS } from '../constants/metadata';
 import { SuccessHandlerMetadata } from '../types';
 
 export function OnError<ReturnType>(
+  handler: (error: AxiosError) => ReturnType | Promise<ReturnType>
+): MethodDecorator;
+export function OnError<ReturnType>(
   status: number | number[] | null,
   handler: (error: AxiosError) => ReturnType | Promise<ReturnType>
+): MethodDecorator;
+export function OnError<ReturnType>(
+  statusOrHandler: number | number[] | null | ((error: AxiosError) => ReturnType | Promise<ReturnType>),
+  handler?: (error: AxiosError) => ReturnType | Promise<ReturnType>
 ): MethodDecorator {
+
+  const status = handler === undefined ? null : (statusOrHandler as number | number[] | null);
+  const errorHandler = handler || (statusOrHandler as (error: AxiosError) => ReturnType | Promise<ReturnType>);
+
   return function (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) {
     const errors = Reflect.getMetadata(META_ERRORS, target.constructor.prototype, propertyKey) || [];
     const statuses = status === null ? [null] : (Array.isArray(status) ? status : [status]);
     statuses.forEach(s => {
-      errors.push({ status: s, handler });
+      errors.push({ status: s, handler: errorHandler });
     });
     Reflect.defineMetadata(META_ERRORS, errors, target.constructor.prototype, propertyKey);
   };

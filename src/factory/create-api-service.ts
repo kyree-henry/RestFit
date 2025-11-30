@@ -29,7 +29,7 @@ export interface ApiServiceConfig {
   /**
    * Global response interceptors.
    * These interceptors will be applied to all requests made by this service.
-   * Can be combined with method-specific @Interceptor decorators.
+   * Can be combined with method-specific @ResponseInterceptor decorators.
    */
   responseInterceptors?: ResponseInterceptorConfig[];
 }
@@ -109,6 +109,9 @@ function createSingleService<T>(
   if (config.responseInterceptors && config.responseInterceptors.length > 0) {
     applyResponseInterceptors(axiosInstance, config.responseInterceptors);
   }
+
+  // Expose axios instance for advanced use cases (e.g., custom interceptors)
+  (instance as any).__axiosInstance = axiosInstance;
   const prototype = Object.getPrototypeOf(instance);
   const methodNames = Object.getOwnPropertyNames(prototype).filter(name => name !== 'constructor');
 
@@ -164,7 +167,7 @@ function createSingleService<T>(
       });
 
       try {
-        const response = await axiosInstance({
+        let response = await axiosInstance({
           method: httpMethod,
           url,
           params: Object.keys(queryParams).length ? queryParams : undefined,
@@ -172,9 +175,12 @@ function createSingleService<T>(
           headers: requestHeaders
         });
 
-        // Execute response interceptors
+        // Execute response interceptors (can modify response)
         for (const interceptor of responseInterceptors) {
-          await interceptor.handler(response);
+          const result = await interceptor.handler(response);
+          if (result) {
+            response = result;
+          }
         }
 
         const status = response.status;

@@ -69,13 +69,15 @@ A practical example using REST Countries API showing real-world patterns.
 - Complex queries and filtering
 
 ### 08-response-interceptors.ts
-Demonstrates how to use `@Interceptor` decorator and global interceptors to check responses and trigger actions.
+Demonstrates how to use `@ResponseInterceptor` decorator and global interceptors to check responses, trigger actions, and modify responses.
 
 **Key Features:**
 - Checking response headers (e.g., rate limits, custom headers)
 - Analyzing response data
 - Triggering app logic based on response characteristics
+- Modifying response data before it reaches your code
 - Chaining multiple response interceptors
+- Global interceptors vs method-specific interceptors
 
 ## Running the Samples
 

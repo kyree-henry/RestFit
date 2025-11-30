@@ -4,15 +4,17 @@ import { META_RESPONSE } from '../constants/metadata';
 import { ResponseInterceptorMetadata } from '../types';
 
 /**
- * Decorator to intercept responses and trigger actions.
+ * Decorator to intercept responses and optionally modify them.
  * 
- * @param handler - A function that processes the response (can check conditions internally)
+ * @param handler - A function that processes the response.
+ *                  Can return void (for side effects) or a modified AxiosResponse.
+ *                  If a response is returned, it will replace the original response.
  * 
  * @example
  * ```typescript
  * class MyService {
  *   @Get('/users')
- *   @Interceptor((response) => {
+ *   @ResponseInterceptor((response) => {
  *     if (response.headers['x-something']) {
  *       console.log('Custom header found!', response.headers['x-something']);
  *       // Trigger your app logic here
@@ -21,11 +23,21 @@ import { ResponseInterceptorMetadata } from '../types';
  *   getUsers(): Promise<User[]> {
  *     return {} as Promise<User[]>;
  *   }
+ * 
+ *   @Get('/data')
+ *   @ResponseInterceptor((response) => {
+ *     // Modify response data
+ *     response.data = { ...response.data, modified: true };
+ *     return response; // Return modified response
+ *   })
+ *   getData(): Promise<any> {
+ *     return {} as Promise<any>;
+ *   }
  * }
  * ```
  */
-export function Interceptor(
-  handler: (response: AxiosResponse) => void | Promise<void>
+export function ResponseInterceptor(
+  handler: (response: AxiosResponse) => void | AxiosResponse | Promise<void | AxiosResponse>
 ): MethodDecorator {
   return function (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) {
     const interceptors: ResponseInterceptorMetadata[] =

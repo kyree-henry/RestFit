@@ -3,7 +3,7 @@
   "version": "1.0.5",
   "description": "A TypeScript decorator-based REST API client library",
   "main": "lib/index.js",
-  "types": "lib/index.d.ts",
+  "types": "lib/index.d.ts", 
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf lib",
