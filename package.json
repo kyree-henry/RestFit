@@ -1,6 +1,6 @@
 {
   "name": "restfit",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "A TypeScript decorator-based REST API client library",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
