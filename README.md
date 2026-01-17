@@ -124,6 +124,35 @@ class User {
 - `@OnSuccess(status, handler)` - Custom success handler for specific status codes
   - `status` can be a single number or array of numbers
   - Example: `@OnSuccess([200, 201], handler)`
+- `@OnRetrying(handler)` - Custom retry handler that is called when a request is being retried
+  - Handler receives `retryCount` (number) and `error` (AxiosError)
+  - Example: `@OnRetrying((retryCount, error) => { console.log(`Retry ${retryCount}`); })`
+
+#### Example: Using @OnRetrying
+
+```typescript
+import { Get, Path, OnRetrying, createApiService } from 'restfit';
+import { AxiosError } from 'axios';
+
+class UserService {
+  @Get('/users/{id}')
+  @OnRetrying((retryCount, error) => {
+    console.log(`🔄 Retry attempt ${retryCount} for user ${error.config?.url}`);
+    if (error.response) {
+      console.log(`   Status: ${error.response.status}`);
+    }
+    // You can also trigger custom actions like:
+    // - Update retry metrics
+    // - Send notifications
+    // - Adjust retry strategy
+  })
+  async getUser(@Path('id') id: number): Promise<User> {
+    return {} as User;
+  }
+}
+```
+
+**Note:** The `@OnRetrying` decorator works in conjunction with the resilience retry policy. If retries are disabled in the resilience configuration, the handler will not be called.
 
 ### Response Interceptors
 
@@ -238,6 +267,61 @@ class UserService {
 - Transform response data before it reaches your code
 - Add computed properties or metadata to responses
 - Normalize API responses to match your data models
+
+### Automatic Response Wrapping
+
+RestFit can automatically wrap all responses in a consistent format, similar to Microsoft's API client pattern. This eliminates the need for try-catch blocks and provides a consistent response structure.
+
+Enable response wrapping via the `wrapResponses` config option:
+
+```typescript
+import { Get, createApiService } from 'restfit';
+
+class UserService {
+  @Get('/users')
+  async getUsers(): Promise<User[]> {
+    return [];
+  }
+
+  @Get('/users/{id}')
+  async getUser(@Path('id') id: number): Promise<User> {
+    return {} as User;
+  }
+}
+
+// Enable automatic response wrapping
+const userService = createApiService(UserService, {
+  baseUrl: 'https://api.example.com',
+  wrapResponses: true,
+});
+
+// Usage - no try-catch needed!
+const { data: users, success, error } = await userService.getUsers();
+
+if (success) {
+  console.log('Users:', users);
+} else {
+  console.error('Error:', error?.message);
+}
+```
+
+**Response Format:**
+
+When `wrapResponses: true`:
+- **Success (object)**: The original response object is spread with `success: true` added
+  - Example: `{ users: [...] }` becomes `{ users: [...], success: true }`
+- **Success (array/primitive)**: Wrapped in `{ data: T, success: true }`
+- **Error**: `{ success: false, error: <@OnError handler return value> }`
+
+The `error` field contains whatever the `@OnError` handler returns. If the handler doesn't return anything, `error` will be `undefined`.
+
+**Benefits:**
+- ✅ No try-catch blocks needed
+- ✅ Consistent response structure across all methods
+- ✅ Type-safe error handling
+- ✅ Works seamlessly with existing code (method signatures remain unchanged)
+
+**Note:** When `wrapResponses` is enabled, errors are returned as wrapped responses instead of being thrown, but **only for methods that have `@OnError` handlers**. Methods without error handlers will still throw errors even when `wrapResponses: true`.
 
 ### Authorization Configuration
 

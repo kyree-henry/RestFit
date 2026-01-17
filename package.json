@@ -19,7 +19,8 @@
     "sample:resilience": "tsx samples/05-resilience.ts",
     "sample:multiple": "tsx samples/06-multiple-services.ts",
     "sample:realworld": "tsx samples/07-real-world-api.ts",
-    "sample:interceptors": "tsx samples/08-response-interceptors.ts"
+    "sample:interceptors": "tsx samples/08-response-interceptors.ts",
+    "sample:wrapped": "tsx samples/09-wrapped-responses.ts"
   },
   "keywords": [
     "rest",

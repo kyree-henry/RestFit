@@ -70,12 +70,29 @@ function applyRetryPolicy(axiosInstance: AxiosInstance, policy: RetryPolicy): vo
       return false;
     },
     onRetry: (retryCount: number, error: AxiosError) => {
-      // Log retry attempts for visibility
-      console.log(`🔄 Retrying request (attempt ${retryCount}/${policy.retries ?? 3}):`, error.config?.url);
-      if (error.response) {
-        console.log(`   Status: ${error.response.status}, Message: ${error.message}`);
+      // Check for method-specific retry handler
+      const retryHandler = (error.config as any)?.__retryHandler;
+      if (retryHandler && typeof retryHandler === 'function') {
+        try {
+          // Call the method-specific retry handler
+          const result = retryHandler(retryCount, error);
+          // Handle promise if returned
+          if (result && typeof result.then === 'function') {
+            result.catch((err: any) => {
+              console.error('Error in retry handler:', err);
+            });
+          }
+        } catch (err) {
+          console.error('Error in retry handler:', err);
+        }
       } else {
-        console.log(`   Network error: ${error.message}`);
+        // Default logging if no method-specific handler
+        console.log(`🔄 Retrying request (attempt ${retryCount}/${policy.retries ?? 3}):`, error.config?.url);
+        if (error.response) {
+          console.log(`   Status: ${error.response.status}, Message: ${error.message}`);
+        } else {
+          console.log(`   Network error: ${error.message}`);
+        }
       }
     },
   };

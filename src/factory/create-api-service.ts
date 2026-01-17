@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import 'reflect-metadata';
 import axios, { AxiosError, AxiosResponse, Method } from 'axios';
-import { META_METHOD, META_PATH, META_PARAMS, META_ERRORS, META_SUCCESS, META_RESPONSE } from '../constants/metadata';
-import { ParamMetadata, SuccessHandlerMetadata, ResponseInterceptorMetadata, ResponseInterceptorConfig } from '../types';
+import { META_METHOD, META_PATH, META_PARAMS, META_ERRORS, META_SUCCESS, META_RESPONSE, META_RETRY } from '../constants/metadata';
+import { ParamMetadata, SuccessHandlerMetadata, ResponseInterceptorMetadata, ResponseInterceptorConfig, WrappedResponse } from '../types';
 import { ResiliencePolicy, DEFAULT_RESILIENCE_POLICY } from '../types/resilience';
 import { applyResilience } from '../resilience';
 import { applyResponseInterceptors } from '../interceptors';
@@ -33,6 +33,15 @@ export interface ApiServiceConfig {
    * Can be combined with method-specific @ResponseInterceptor decorators.
    */
   responseInterceptors?: ResponseInterceptorConfig[];
+  /**
+   * Automatically wrap responses in a consistent format.
+   * When enabled, methods with @OnError handlers return { data: T, success: boolean, error?: Error } instead of throwing errors.
+   * Methods without error handlers will still throw errors even when wrapResponses is enabled.
+   * - true: Returns wrapped response with error object on failure (only for methods with @OnError handlers)
+   * - false: Default behavior (throws errors)
+   * @default false
+   */
+  wrapResponses?: boolean;
 }
 
 // Overload for single service
@@ -131,6 +140,7 @@ function createSingleService<T>(
 
     const errorHandlers = Reflect.getMetadata(META_ERRORS, prototype, methodName) || [];
     const responseInterceptors: ResponseInterceptorMetadata[] = Reflect.getMetadata(META_RESPONSE, prototype, methodName) || [];
+    const retryHandler = Reflect.getMetadata(META_RETRY, prototype, methodName);
 
     (instance as any)[methodName] = async function (...args: any[]) {
       let url = pathTemplate;
@@ -173,8 +183,10 @@ function createSingleService<T>(
           url,
           params: Object.keys(queryParams).length ? queryParams : undefined,
           data: requestBody,
-          headers: requestHeaders
-        });
+          headers: requestHeaders,
+          // Attach retry handler to config for resilience module to access
+          ...(retryHandler && { __retryHandler: retryHandler })
+        } as any);
 
         // Extend response with helper methods and execute interceptors
         let extendedResponse = extendResponse(response);
@@ -192,11 +204,30 @@ function createSingleService<T>(
           Array.isArray(h.status) ? h.status.includes(status) : h.status === status
         );
 
+        let finalData: any;
         if (successHandler) {
-          return await successHandler.handler(response.data);
+          finalData = await successHandler.handler(response.data);
+        } else {
+          finalData = response.data;
         }
 
-        return response.data;
+        // Wrap response if enabled - spread original data and add success
+        if (config.wrapResponses) {
+          // If finalData is an object (not array, not null), spread it
+          if (finalData && typeof finalData === 'object' && !Array.isArray(finalData)) {
+            return {
+              ...finalData,
+              success: true
+            } as any;
+          }
+          // For arrays and primitives, wrap in object with data property
+          return {
+            data: finalData,
+            success: true
+          } as any;
+        }
+
+        return finalData;
       } catch (error) {
         if (axios.isAxiosError(error)) {
           // Create or use existing response for method-specific interceptors
@@ -224,7 +255,23 @@ function createSingleService<T>(
               modifiedResponse = extendResponse(result);
               // If interceptor changed status to success (2xx), return it as success (no error thrown)
               if (modifiedResponse.isSuccessStatusCode()) {
-                return modifiedResponse.data;
+                const successData = modifiedResponse.data;
+                // Wrap response if enabled
+                if (config.wrapResponses) {
+                  // If successData is an object (not array, not null), spread it
+                  if (successData && typeof successData === 'object' && !Array.isArray(successData)) {
+                    return {
+                      ...successData,
+                      success: true
+                    } as any;
+                  }
+                  // For arrays and primitives, wrap in object with data property
+                  return {
+                    data: successData,
+                    success: true
+                  } as any;
+                }
+                return successData;
               }
             }
           }
@@ -241,7 +288,20 @@ function createSingleService<T>(
             return h.status === status;
           });
 
-          if (handler) return handler.handler(error as AxiosError);
+          if (handler) {
+            const handlerResult = await handler.handler(error as AxiosError);
+            // If wrapResponses is enabled, add success and error
+            if (config.wrapResponses) {
+              // Just add success and error, don't spread handlerResult
+              return {
+                success: false,
+                error: handlerResult as any // What the @OnError handler returns
+              } as any;
+            }
+            return handlerResult;
+          }
+
+          // No error handler found - throw error even if wrapResponses is enabled
         }
         throw error;
       }

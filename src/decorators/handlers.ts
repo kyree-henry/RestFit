@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { AxiosError } from 'axios';
-import { META_ERRORS, META_SUCCESS } from '../constants/metadata';
+import { META_ERRORS, META_SUCCESS, META_RETRY } from '../constants/metadata';
 import { SuccessHandlerMetadata } from '../types';
 
 export function OnError<ReturnType>(
@@ -41,3 +41,10 @@ export function OnSuccess<ReturnType>(
   };
 }
 
+export function OnRetrying<ReturnType = void>(
+  handler: (retryCount: number, error: AxiosError) => ReturnType | Promise<ReturnType>
+): MethodDecorator {
+  return function (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) {
+    Reflect.defineMetadata(META_RETRY, handler, target.constructor.prototype, propertyKey);
+  };
+}
