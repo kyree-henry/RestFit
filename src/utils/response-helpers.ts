@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { AxiosResponse, AxiosRequestConfig } from 'axios';
+import { AxiosInstance, AxiosResponse, AxiosRequestConfig } from 'axios';
 
 /**
  * HTTP Success Status Codes (2xx)
@@ -62,6 +62,55 @@ export type ErrorStatusCode =
   | 511; // Network Authentication Required
 
 /**
+ * Mutable request configuration exposed inside interceptors.
+ * Provides chainable setters so you can modify the request before replaying it
+ * via `response.retry()`.
+ */
+export interface InterceptorRequestConfig extends AxiosRequestConfig {
+  /**
+   * Sets or replaces a single request header.
+   * @returns The config itself for chaining.
+   */
+  setHeader(name: string, value: string): InterceptorRequestConfig;
+
+  /**
+   * Removes a request header by name (case-insensitive match).
+   * @returns The config itself for chaining.
+   */
+  removeHeader(name: string): InterceptorRequestConfig;
+
+  /**
+   * Merges an object of headers into the existing headers.
+   * @returns The config itself for chaining.
+   */
+  mergeHeaders(headers: Record<string, string>): InterceptorRequestConfig;
+
+  /**
+   * Sets or replaces a single query parameter.
+   * @returns The config itself for chaining.
+   */
+  setQueryParam(name: string, value: any): InterceptorRequestConfig;
+
+  /**
+   * Removes a query parameter.
+   * @returns The config itself for chaining.
+   */
+  removeQueryParam(name: string): InterceptorRequestConfig;
+
+  /**
+   * Replaces the request body / data payload.
+   * @returns The config itself for chaining.
+   */
+  setBody(data: any): InterceptorRequestConfig;
+
+  /**
+   * Overwrites the URL path (relative to `baseURL`).
+   * @returns The config itself for chaining.
+   */
+  setUrl(url: string): InterceptorRequestConfig;
+}
+
+/**
  * Extended AxiosResponse with helper methods
  */
 export interface ExtendedAxiosResponse<T = any> extends AxiosResponse<T> {
@@ -101,13 +150,126 @@ export interface ExtendedAxiosResponse<T = any> extends AxiosResponse<T> {
    * @returns {ExtendedAxiosResponse} An error response object
    */
   createError(data: any, statusCode?: ErrorStatusCode, config?: AxiosRequestConfig): ExtendedAxiosResponse<T>;
+
+  /**
+   * The original request configuration for this response.
+   * This is a mutable `InterceptorRequestConfig` — you can modify headers,
+   * query params, body, or URL and then call `retry()` to re-send the request.
+   *
+   * @example
+   * ```typescript
+   * @ResponseInterceptor(async (response) => {
+   *   if (response.status === 401) {
+   *     const newToken = await refreshToken();
+   *     response.request.setHeader('Authorization', `Bearer ${newToken}`);
+   *     return response.retry();
+   *   }
+   * })
+   * ```
+   */
+  request: InterceptorRequestConfig;
+
+  /**
+   * Re-sends the request using the (optionally modified) request config.
+   *
+   * You can modify `response.request` before calling this, or pass an
+   * entirely new config to override specific fields.
+   *
+   * @param {AxiosRequestConfig} [overrides] - Optional config overrides merged
+   *   on top of the current request config.
+   * @returns {Promise<ExtendedAxiosResponse>} The new response from the replayed request.
+   *
+   * @example
+   * ```typescript
+   * // Retry with the same config (e.g. after refreshing a token in-place)
+   * return response.retry();
+   *
+   * // Retry with overrides
+   * return response.retry({ params: { page: 2 } });
+   * ```
+   */
+  retry(overrides?: AxiosRequestConfig): Promise<ExtendedAxiosResponse>;
+
+  /** @internal Reference to the axios instance for retry(). */
+  __axiosInstance?: AxiosInstance;
 }
 
 /**
- * Extends an AxiosResponse with helper methods
+ * Extends a raw AxiosRequestConfig with chainable setter methods.
  */
-export function extendResponse<T = any>(response: AxiosResponse<T>): ExtendedAxiosResponse<T> {
+export function extendRequestConfig(config: AxiosRequestConfig): InterceptorRequestConfig {
+  const ext = config as InterceptorRequestConfig;
+
+  ext.setHeader = function (name: string, value: string): InterceptorRequestConfig {
+    if (!this.headers) this.headers = {};
+    (this.headers as Record<string, string>)[name] = value;
+    return this;
+  };
+
+  ext.removeHeader = function (name: string): InterceptorRequestConfig {
+    if (this.headers) {
+      const lowerName = name.toLowerCase();
+      for (const key of Object.keys(this.headers as Record<string, any>)) {
+        if (key.toLowerCase() === lowerName) {
+          delete (this.headers as Record<string, any>)[key];
+        }
+      }
+    }
+    return this;
+  };
+
+  ext.mergeHeaders = function (headers: Record<string, string>): InterceptorRequestConfig {
+    if (!this.headers) this.headers = {};
+    Object.assign(this.headers, headers);
+    return this;
+  };
+
+  ext.setQueryParam = function (name: string, value: any): InterceptorRequestConfig {
+    if (!this.params) this.params = {};
+    this.params[name] = value;
+    return this;
+  };
+
+  ext.removeQueryParam = function (name: string): InterceptorRequestConfig {
+    if (this.params) delete this.params[name];
+    return this;
+  };
+
+  ext.setBody = function (data: any): InterceptorRequestConfig {
+    this.data = data;
+    return this;
+  };
+
+  ext.setUrl = function (url: string): InterceptorRequestConfig {
+    this.url = url;
+    return this;
+  };
+
+  return ext;
+}
+
+/**
+ * Extends an AxiosResponse with helper methods.
+ *
+ * @param response    - The raw Axios response.
+ * @param axiosInst   - Optional. The AxiosInstance used to make the request.
+ *                      When provided, `response.retry()` becomes functional.
+ */
+export function extendResponse<T = any>(
+  response: AxiosResponse<T>,
+  axiosInst?: AxiosInstance
+): ExtendedAxiosResponse<T> {
   const extended = response as ExtendedAxiosResponse<T>;
+
+  // Preserve an already-attached instance when re-extending (e.g. after cloneWithStatusCode)
+  if (axiosInst) {
+    extended.__axiosInstance = axiosInst;
+  }
+
+  // ── Build the mutable request config ──────────────────────────
+  extended.request = extendRequestConfig({ ...(response.config || {}) });
+
+  // ── Helper methods ────────────────────────────────────────────
 
   extended.ensureSuccessStatusCode = function (): void {
     if (!this.isSuccessStatusCode()) {
@@ -126,16 +288,48 @@ export function extendResponse<T = any>(response: AxiosResponse<T>): ExtendedAxi
       statusText: getStatusText(statusCode),
     } as ExtendedAxiosResponse<T>;
 
-    // Re-apply extensions to the cloned response
-    return extendResponse(cloned);
+    // Re-apply extensions to the cloned response (pass instance through)
+    return extendResponse(cloned, this.__axiosInstance);
   };
 
   extended.createSuccess = function (data: any, statusCode: SuccessStatusCode = 200, config?: AxiosRequestConfig): ExtendedAxiosResponse<T> {
-    return createSuccessResponse(data, statusCode, config || this.config);
+    return createSuccessResponse(data, statusCode, config || this.config, this.__axiosInstance);
   };
 
   extended.createError = function (data: any, statusCode: ErrorStatusCode = 500, config?: AxiosRequestConfig): ExtendedAxiosResponse<T> {
-    return createErrorResponse(data, statusCode, config || this.config);
+    return createErrorResponse(data, statusCode, config || this.config, this.__axiosInstance);
+  };
+
+  // ── retry() ───────────────────────────────────────────────────
+  extended.retry = async function (overrides?: AxiosRequestConfig): Promise<ExtendedAxiosResponse> {
+    const instance = this.__axiosInstance;
+    if (!instance) {
+      throw new Error(
+        'retry() is not available: no axios instance is attached to this response. ' +
+        'retry() is only available inside @ResponseInterceptor handlers and global responseInterceptors.'
+      );
+    }
+
+    // Merge the (potentially mutated) request config with any overrides
+    const retryConfig: AxiosRequestConfig = {
+      ...this.request,
+      ...(overrides || {}),
+    };
+    if (overrides?.headers) {
+      retryConfig.headers = {
+        ...(this.request.headers as Record<string, any> || {}),
+        ...(overrides.headers as Record<string, any>),
+      };
+    }
+    if (overrides?.params) {
+      retryConfig.params = {
+        ...(this.request.params || {}),
+        ...overrides.params,
+      };
+    }
+
+    const newResponse = await instance(retryConfig);
+    return extendResponse(newResponse, instance);
   };
 
   return extended;
@@ -147,7 +341,8 @@ export function extendResponse<T = any>(response: AxiosResponse<T>): ExtendedAxi
 export function createSuccessResponse<T = any>(
   data: any,
   statusCode: SuccessStatusCode = 200,
-  config?: AxiosRequestConfig
+  config?: AxiosRequestConfig,
+  axiosInst?: AxiosInstance
 ): ExtendedAxiosResponse<T> {
   const response = {
     data,
@@ -157,7 +352,7 @@ export function createSuccessResponse<T = any>(
     config: config || {},
   } as AxiosResponse<T>;
 
-  return extendResponse(response);
+  return extendResponse(response, axiosInst);
 }
 
 /**
@@ -166,7 +361,8 @@ export function createSuccessResponse<T = any>(
 export function createErrorResponse<T = any>(
   data: any,
   statusCode: ErrorStatusCode = 500,
-  config?: AxiosRequestConfig
+  config?: AxiosRequestConfig,
+  axiosInst?: AxiosInstance
 ): ExtendedAxiosResponse<T> {
   const response = {
     data,
@@ -176,7 +372,7 @@ export function createErrorResponse<T = any>(
     config: config || {},
   } as AxiosResponse<T>;
 
-  return extendResponse(response);
+  return extendResponse(response, axiosInst);
 }
 
 /**

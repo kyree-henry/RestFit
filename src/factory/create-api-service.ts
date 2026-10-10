@@ -189,11 +189,11 @@ function createSingleService<T>(
         } as any);
 
         // Extend response with helper methods and execute interceptors
-        let extendedResponse = extendResponse(response);
+        let extendedResponse = extendResponse(response, axiosInstance);
         for (const interceptor of responseInterceptors) {
           const result = await interceptor.handler(extendedResponse);
           if (result) {
-            extendedResponse = extendResponse(result);
+            extendedResponse = extendResponse(result, axiosInstance);
           }
         }
         response = extendedResponse;
@@ -248,11 +248,11 @@ function createSingleService<T>(
           }
 
           // Extend response with helper methods and execute interceptors
-          let modifiedResponse = extendResponse(responseToIntercept);
+          let modifiedResponse = extendResponse(responseToIntercept, axiosInstance);
           for (const interceptor of responseInterceptors) {
             const result = await interceptor.handler(modifiedResponse);
             if (result) {
-              modifiedResponse = extendResponse(result);
+              modifiedResponse = extendResponse(result, axiosInstance);
               // If interceptor changed status to success (2xx), return it as success (no error thrown)
               if (modifiedResponse.isSuccessStatusCode()) {
                 const successData = modifiedResponse.data;

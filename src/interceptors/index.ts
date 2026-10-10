@@ -14,13 +14,13 @@ export function applyResponseInterceptors(
   axiosInstance.interceptors.response.use(
     async (response: AxiosResponse) => {
       // Extend response with helper methods
-      let modifiedResponse = extendResponse(response);
+      let modifiedResponse = extendResponse(response, axiosInstance);
 
       // Execute all interceptors (can modify response)
       for (const interceptor of interceptors) {
         const result = await interceptor.handler(modifiedResponse);
         if (result) {
-          modifiedResponse = extendResponse(result);
+          modifiedResponse = extendResponse(result, axiosInstance);
         }
       }
       return modifiedResponse;
@@ -44,11 +44,11 @@ export function applyResponseInterceptors(
       }
 
       // Extend response with helper methods and execute interceptors
-      let modifiedResponse = extendResponse(responseToIntercept);
+      let modifiedResponse = extendResponse(responseToIntercept, axiosInstance);
       for (const interceptor of interceptors) {
         const result = await interceptor.handler(modifiedResponse);
         if (result) {
-          modifiedResponse = extendResponse(result);
+          modifiedResponse = extendResponse(result, axiosInstance);
           // If interceptor changed status to success (2xx), return it as success (no error thrown)
           if (modifiedResponse.isSuccessStatusCode()) {
             return modifiedResponse;
